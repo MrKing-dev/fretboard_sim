@@ -212,4 +212,49 @@
             }
 
             // Build Markers
-            const markedFrets = [3, 5, 7, 9, 12, 15, 17,
+            const markedFrets = [3, 5, 7, 9, 12, 15, 17, 19];
+            for (let fret = 0; fret <= numFrets; fret++) {
+                const markerDiv = document.createElement('div');
+                markerDiv.className = fret === 0 ? 'marker nut-marker' : 'marker';
+                if (markedFrets.includes(fret)) {
+                    markerDiv.innerText = fret;
+                }
+                markersEl.appendChild(markerDiv);
+            }
+
+            updateFretboard(); 
+        }
+
+        // Only update the active/inactive state of the dots
+        function updateFretboard() {
+            const selectedRoot = parseInt(keySelect.value);
+            const selectedScalePattern = scales[scaleSelect.value];
+            const dots = document.querySelectorAll('.dot');
+
+            dots.forEach(dot => {
+                const dotNoteValue = parseInt(dot.dataset.noteValue);
+                const interval = (dotNoteValue - selectedRoot + 12) % 12;
+
+                dot.className = 'dot'; 
+
+                if (selectedScalePattern.includes(interval)) {
+                    dot.classList.add('active');
+                    if (interval === 0) {
+                        dot.classList.add('root');
+                    } else {
+                        dot.classList.add('scale');
+                    }
+                }
+            });
+        }
+
+        // Event Listeners
+        stringCountSelect.addEventListener('change', buildGrid); // Rebuilds the whole DOM
+        keySelect.addEventListener('change', updateFretboard);   // Only updates dot visibility
+        scaleSelect.addEventListener('change', updateFretboard); // Only updates dot visibility
+
+        // Initialize
+        buildGrid();
+    </script>
+</body>
+</html>
