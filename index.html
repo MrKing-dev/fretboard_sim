@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Bass Fretboard</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #1e1e1e;
+            color: #ffffff;
+            padding: 40px;
+        }
+
+        .controls {
+            margin-bottom: 30px;
+            display: flex;
+            gap: 20px;
+        }
+
+        select {
+            padding: 10px 15px;
+            font-size: 16px;
+            background-color: #333;
+            color: white;
+            border: 1px solid #555;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .fretboard-container {
+            overflow-x: auto;
+            padding-bottom: 20px;
+        }
+
+        .fretboard {
+            display: flex;
+            flex-direction: column;
+            background-color: #2c2c2c;
+            border-radius: 8px;
+            padding: 20px 0;
+            min-width: 1200px; /* Ensures it scrolls rather than squishing */
+        }
+
+        .string {
+            display: flex;
+            height: 45px;
+            position: relative;
+            align-items: center;
+        }
+
+        /* The physical string line */
+        .string::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(to bottom, #bdc3c7, #7f8c8d);
+            z-index: 1;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+        
+        /* Make lower strings thicker visually */
+        .string:nth-child(3)::before { height: 4px; }
+        .string:nth-child(4)::before { height: 5px; }
+
+        .fret {
+            width: 70px;
+            height: 100%;
+            border-right: 2px solid #888;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            z-index: 2;
+            flex-shrink: 0;
+        }
+
+        /* The Nut (Fret 0) */
+        .fret.nut {
+            width: 50px;
+            border-right: 8px solid #dcdde1;
+            background-color: #111;
+        }
+
+        .dot {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            display: none; /* Hidden by default */
+            justify-content: center;
+            align-items: center;
+            font-size: 13px;
+            font-weight: bold;
+            z-index: 3;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+            transition: background-color 0.2s, transform 0.1s;
+        }
+
+        .dot.active {
+            display: flex;
+        }
+
+        .dot.root {
+            background-color: #e74c3c; /* Red for Root Note */
+            color: white;
+            transform: scale(1.1);
+        }
+
+        .dot.scale {
+            background-color: #3498db; /* Blue for Scale Notes */
+            color: white;
+        }
+
+        /* Bottom fret numbers */
+        .fret-markers {
+            display: flex;
+            height: 30px;
+            margin-top: 5px;
+        }
+
+        .marker {
+            width: 70px;
+            text-align: center;
+            color: #aaa;
+            font-size: 14px;
+            flex-shrink: 0;
+        }
+        .marker.nut-marker { width: 50px; }
+    </style>
+</head>
+<body>
+
+    <div class="controls">
+        <select id="keySelect">
+            <option value="0">C</option>
+            <option value="1">C#</option>
+            <option value="2">D</option>
+            <option value="3">D#</option>
+            <option value="4">E</option>
+            <option value="5">F</option>
+            <option value="6">F#</option>
+            <option value="7" selected>G</option>
+            <option value="8">G#</option>
+            <option value="9">A</option>
+            <option value="10">A#</option>
+            <option value="11">B</option>
+        </select>
+
+        <select id="scaleSelect">
+            <option value="major">Major</option>
+            <option value="minor">Minor</option>
+            <option value="majorPentatonic">Major Pentatonic</option>
+            <option value="minorPentatonic">Minor Pentatonic</option>
+        </select>
+    </div>
+
+    <div class="fretboard-container">
+        <div class="fretboard" id="fretboard">
+            </div>
+        <div class="fret-markers" id="fretMarkers">
+            </div>
+    </div>
+
+    <script>
+        // 1. Core Data
+        const noteNames = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+        
+        // Standard Bass Tuning (G, D, A, E) from top string to bottom string visually
+        // These are the integer values of the open strings
+        const tuning = [7, 2, 9, 4]; 
+        const numFrets = 20;
+
+        const scales = {
+            "major": [0, 2, 4, 5, 7, 9, 11],
+            "minor": [0, 2, 3, 5, 7, 8, 10],
+            "majorPentatonic": [0, 2, 4, 7, 9],
+            "minorPentatonic": [0, 3, 5, 7, 10]
+        };
+
+        // 2. DOM Elements
+        const fretboardEl = document.getElementById('fretboard');
+        const markersEl = document.getElementById('fretMarkers');
+        const keySelect = document.getElementById('keySelect');
+        const scaleSelect = document.getElementById('scaleSelect');
+
+        // 3. Initialization
+        function initFretboard() {
+            // Build the Strings and Frets
+            for (let i = 0; i < tuning.length; i++) {
+                const stringDiv = document.createElement('div');
+                stringDiv.className = 'string';
+                const openStringNote = tuning[i];
+
+                for (let fret = 0; fret <= numFrets; fret++) {
+                    const fretDiv = document.createElement('div');
+                    fretDiv.className = fret === 0 ? 'fret nut' : 'fret';
+                    
+                    // Calculate the absolute note value for this specific cell
+                    const noteValue = (openStringNote + fret) % 12;
+
+                    const dot = document.createElement('div');
+                    dot.className = 'dot';
+                    dot.dataset.noteValue = noteValue; // Store the note value for easy access later
+                    dot.innerText = noteNames[noteValue];
+
+                    fretDiv.appendChild(dot);
+                    stringDiv.appendChild(fretDiv);
+                }
+                fretboardEl.appendChild(stringDiv);
+            }
+
+            // Build the Fret Markers (3, 5, 7, 9, 12, etc.)
+            const markedFrets = [3, 5, 7, 9, 12, 15, 17, 19];
+            for (let fret = 0; fret <= numFrets; fret++) {
+                const markerDiv = document.createElement('div');
+                markerDiv.className = fret === 0 ? 'marker nut-marker' : 'marker';
+                if (markedFrets.includes(fret)) {
+                    markerDiv.innerText = fret;
+                }
+                markersEl.appendChild(markerDiv);
+            }
+
+            updateFretboard(); // Run initial calculation
+        }
+
+        // 4. Update Logic (The Modulo Math)
+        function updateFretboard() {
+            const selectedRoot = parseInt(keySelect.value);
+            const selectedScalePattern = scales[scaleSelect.value];
+            
+            // Grab every dot we generated
+            const dots = document.querySelectorAll('.dot');
+
+            dots.forEach(dot => {
+                const dotNoteValue = parseInt(dot.dataset.noteValue);
+                
+                // Calculate interval from the chosen root note
+                const interval = (dotNoteValue - selectedRoot + 12) % 12;
+
+                // Reset classes
+                dot.className = 'dot'; 
+
+                // Check if this dot belongs in the chosen scale
+                if (selectedScalePattern.includes(interval)) {
+                    dot.classList.add('active');
+                    
+                    // Highlight the root note specifically
+                    if (interval === 0) {
+                        dot.classList.add('root');
+                    } else {
+                        dot.classList.add('scale');
+                    }
+                }
+            });
+        }
+
+        // 5. Event Listeners
+        keySelect.addEventListener('change', updateFretboard);
+        scaleSelect.addEventListener('change', updateFretboard);
+
+        // Run on load
+        initFretboard();
+    </script>
+</body>
+</html>
